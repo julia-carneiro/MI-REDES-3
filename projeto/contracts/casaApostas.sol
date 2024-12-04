@@ -23,6 +23,9 @@ contract CasaApostas {
     event ApostaFeita(uint256 eventoId, address apostador, uint256 opcao, uint256 valor);
     event ResultadoDefinido(uint256 eventoId, uint256 resultado);
 
+    function getOpcoes(uint256 eventoId) public view returns (string[] memory) {
+        return eventos[eventoId].opcoes;
+    }
     // Criar um evento de aposta
    function criarEvento(string memory descricao, string[] memory opcoes, uint256 prazo) external {
     require(opcoes.length > 1, "Deve haver pelo menos 2 opcoes.");

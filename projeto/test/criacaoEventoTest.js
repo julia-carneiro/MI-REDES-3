@@ -17,15 +17,18 @@ contract("CasaApostas", (accounts) => {
   
     // Verificar se o evento foi criado
     const evento = await casaApostas.eventos(0);
-    console.log(evento);  // Verificar o conteúdo completo do evento
+    // console.log(evento);  // Verificar o conteúdo completo do evento
+
+    const opcoesDoEvento = await casaApostas.getOpcoes(0);
+    console.log(opcoesDoEvento); // Deve exibir ['time A', 'time B', 'empate']
+
   
-    // Verificar se as opções foram registradas corretamente
-    assert.equal(evento.opcoes.length, opcoes.length);  // Verificando o tamanho do array
-    for (let i = 0; i < opcoes.length; i++) {
-      assert.equal(evento.opcoes[i], opcoes[i]); // Comparando as opções
-    }
+    // // Verificar se as opções foram registradas corretamente
+    assert.deepEqual(opcoesDoEvento, opcoes, "As opções do evento devem corresponder.");
+   
+   
   
-    // Verificar o evento emitido
+    // // Verificar o evento emitido
     const logs = tx.logs;
     assert.equal(logs.length, 1);
     const log = logs[0];
