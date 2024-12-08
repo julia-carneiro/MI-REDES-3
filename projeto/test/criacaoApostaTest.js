@@ -9,7 +9,7 @@ contract("CasaApostas", (accounts) => {
 
   it("deve permitir fazer uma aposta válida", async () => {
     const descricao = "Final da Copa do Mundo";
-    const prazo = Math.floor(Date.now() / 1000) + 3600; // 1 hora a partir de agora
+    const prazo = Math.floor(Date.now() / 1000) + 3600; 
     const opcoes = ["time A", "time B", "empate"];
 
     // Criar um evento
@@ -45,7 +45,7 @@ contract("CasaApostas", (accounts) => {
 
   it("deve rejeitar apostas após o prazo do evento", async () => {
     const descricao = "Final da Copa do Mundo";
-    const prazo = Math.floor(Date.now() / 1000)+ 3; // Prazo já expirado
+    const prazo = Math.floor(Date.now() / 1000) + 3; // Prazo já expirado
     const opcoes = ["time A", "time B", "empate"];
     await casaApostas.criarEvento(descricao, opcoes, prazo, { from: accounts[0] });
 

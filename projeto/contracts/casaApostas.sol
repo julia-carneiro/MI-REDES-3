@@ -2,6 +2,12 @@
 pragma solidity ^0.8.20;
 
 contract CasaApostas {
+    struct Aposta {
+        address apostador;
+        uint256 opcao;
+        uint256 valor;
+    }
+
     struct Evento {
         uint256 id;
         address criador;
@@ -13,34 +19,89 @@ contract CasaApostas {
         mapping(uint256 => uint256) apostasPorOpcao; // Opção => Valor total apostado
         mapping(address => uint256) apostasUsuario;  // Usuário => Valor apostado
         address[] apostadores;
+        Aposta[] apostas; // Array de apostas
+        bool encerrado; // Status de encerramento
+    }
+
+    struct HistoricoEvento {
+        uint256 id;
+        string descricao;
+        string[] opcoes;
+        uint256 resultado;
+        uint256 prazo;
     }
 
     uint256 public proximoIdEvento;
     mapping(uint256 => Evento) public eventos;
     mapping(address => uint256) public saldos; // Saldo dos usuários no sistema
+    HistoricoEvento[] public historico;
 
-    event EventoCriado(uint256 id, address criador,string[] opcoes, string descricao, uint256 prazo);
+    event EventoCriado(uint256 id, address criador, string[] opcoes, string descricao, uint256 prazo);
     event ApostaFeita(uint256 eventoId, address apostador, uint256 opcao, uint256 valor);
     event ResultadoDefinido(uint256 eventoId, uint256 resultado);
+    event EventoEncerrado(uint256 eventoId, uint256 resultado);
+    event SaldoSacado(address indexed usuario, uint256 valor);
 
     function getOpcoes(uint256 eventoId) public view returns (string[] memory) {
         return eventos[eventoId].opcoes;
     }
+
     // Criar um evento de aposta
-   function criarEvento(string memory descricao, string[] memory opcoes, uint256 prazo) external {
-    require(opcoes.length > 1, "Deve haver pelo menos 2 opcoes.");
-    require(prazo > block.timestamp, "Prazo deve ser no futuro.");
+    function criarEvento(string memory descricao, string[] memory opcoes, uint256 prazo) external {
+        require(opcoes.length > 1, "Deve haver pelo menos 2 opcoes.");
+        require(prazo > block.timestamp, "Prazo deve ser no futuro.");
 
-    Evento storage novoEvento = eventos[proximoIdEvento];
-    novoEvento.id = proximoIdEvento;
-    novoEvento.criador = msg.sender;
-    novoEvento.descricao = descricao;
-    novoEvento.opcoes = opcoes;
-    novoEvento.prazo = prazo;
+        Evento storage novoEvento = eventos[proximoIdEvento];
+        novoEvento.id = proximoIdEvento;
+        novoEvento.criador = msg.sender;
+        novoEvento.descricao = descricao;
+        novoEvento.opcoes = opcoes;
+        novoEvento.prazo = prazo;
 
-    emit EventoCriado(proximoIdEvento, msg.sender, opcoes, descricao, prazo);
-    proximoIdEvento++;
-}
+        emit EventoCriado(proximoIdEvento, msg.sender, opcoes, descricao, prazo);
+        proximoIdEvento++;
+    }
+
+    // Função para encerrar evento e distribuir prêmios
+    function encerrarEvento(uint256 eventoId, uint256 resultado) public {
+        Evento storage evento = eventos[eventoId];
+        
+        // Verificar se o evento já terminou e não foi encerrado ainda
+        require(block.timestamp > evento.prazo, "Evento ainda em andamento.");
+        require(!evento.encerrado, "Evento ja foi encerrado.");
+
+        evento.encerrado = true; // Marca o evento como encerrado
+        evento.resultado = resultado; // Define o resultado do evento
+
+        // Total apostado na opção vencedora
+        uint256 totalApostado = evento.apostasPorOpcao[resultado];
+        if (totalApostado > 0) {
+            // Distribuir prêmio para os apostadores da opção vencedora
+            for (uint256 i = 0; i < evento.apostas.length; i++) {
+                Aposta memory aposta = evento.apostas[i];
+                if (aposta.opcao == resultado) {
+                    // Cálculo do prêmio baseado no valor apostado e no total apostado na opção vencedora
+                    uint256 premio = (aposta.valor * evento.apostasPorOpcao[resultado]) / totalApostado;
+                    saldos[aposta.apostador] += premio;
+                }
+            }
+        }
+
+        // Emitir evento para informar que o evento foi encerrado
+        emit EventoEncerrado(eventoId, resultado);
+    }
+
+
+    // Função para depósito
+    function depositar() external payable {
+        require(msg.value > 0, "O valor do deposito deve ser maior que zero.");
+        saldos[msg.sender] += msg.value;
+    }
+
+    // Função para visualizar o saldo
+    function getSaldo() external view returns (uint256) {
+        return saldos[msg.sender];
+    }
 
     // Apostar em um evento
     function apostar(uint256 eventoId, uint256 opcao) external payable {
@@ -54,6 +115,13 @@ contract CasaApostas {
             evento.apostadores.push(msg.sender);
         }
         evento.apostasUsuario[msg.sender] += msg.value;
+
+        // Registrar aposta no array
+        evento.apostas.push(Aposta({
+            apostador: msg.sender,
+            opcao: opcao,
+            valor: msg.value
+        }));
 
         emit ApostaFeita(eventoId, msg.sender, opcao, msg.value);
     }
@@ -75,23 +143,77 @@ contract CasaApostas {
             for (uint256 i = 0; i < evento.apostadores.length; i++) {
                 address apostador = evento.apostadores[i];
                 uint256 valorApostado = evento.apostasUsuario[apostador];
-                
-                // Verificar se o apostador apostou na opção vencedora
-                if (valorApostado > 0 && evento.apostasUsuario[apostador] == resultado) {
+
+                if (valorApostado > 0) {
                     uint256 premio = (valorApostado * totalApostado) / evento.apostasPorOpcao[resultado];
                     saldos[apostador] += premio;
                 }
             }
-}
+        }
+
+        // Armazenar evento no histórico
+        historico.push(HistoricoEvento({
+            id: evento.id,
+            descricao: evento.descricao,
+            opcoes: evento.opcoes,
+            resultado: resultado,
+            prazo: evento.prazo
+        }));
 
         emit ResultadoDefinido(eventoId, resultado);
     }
 
-    // Sacar saldo
+    // Calcular odds
+    function calcularOdds(uint256 eventoId) public view returns (uint256[] memory) {
+        Evento storage evento = eventos[eventoId];
+        uint256 totalApostado = 0;
+        for (uint256 i = 0; i < evento.opcoes.length; i++) {
+            totalApostado += evento.apostasPorOpcao[i];
+        }
+
+        uint256[] memory odds = new uint256[](evento.opcoes.length);
+        for (uint256 i = 0; i < evento.opcoes.length; i++) {
+            if (evento.apostasPorOpcao[i] > 0) {
+                odds[i] = (totalApostado * 1e18) / evento.apostasPorOpcao[i];
+            } else {
+                odds[i] = 0;
+            }
+        }
+        return odds;
+    }
+
+    // Visualizar histórico
+    function getHistorico(uint256 index) public view returns (
+        uint256 id,
+        string memory descricao,
+        uint256 resultado,
+        uint256 prazo
+    ) {
+        require(index < historico.length, "Indice fora do historico.");
+        HistoricoEvento storage e = historico[index];
+        return (e.id, e.descricao, e.resultado, e.prazo);
+    }
+
+    // Visualizar resultado de um evento
+    function getResultado(uint256 eventoId) public view returns (uint256) {
+        Evento storage evento = eventos[eventoId];
+        require(evento.finalizado, "O evento ainda nao foi finalizado.");
+        return evento.resultado;
+    }
+
+    // Função para sacar saldo
     function sacarSaldo() external {
         uint256 saldo = saldos[msg.sender];
         require(saldo > 0, "Saldo insuficiente.");
+
+        // Atualizando o saldo antes da transferência para evitar reentrância
         saldos[msg.sender] = 0;
-        payable(msg.sender).transfer(saldo);
+
+        // Transferindo o saldo usando call para maior segurança
+        (bool success, ) = msg.sender.call{value: saldo}("");
+        require(success, "Falha na transferencia de saldo.");
+
+        // Emitir evento de saque
+        emit SaldoSacado(msg.sender, saldo);
     }
 }
