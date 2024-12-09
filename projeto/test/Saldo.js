@@ -49,7 +49,7 @@ contract("CasaApostas - Saldos", (accounts) => {
         }
     });
 
-    it("deve permitir encerrar apostas e atualizar saldo dos vencedores", async () => {
+    it("deve permitir encerrar eventos e exibir informações detalhadas", async () => {
         const descricao = "Lançamento de moeda";
         const prazo = (await web3.eth.getBlock('latest')).timestamp + 2; // Prazo no futuro (2 segundos)
         const opcoes = ["cara", "coroa"];
@@ -86,9 +86,20 @@ contract("CasaApostas - Saldos", (accounts) => {
         // Verificar saldos
         const saldo1 = await casaApostas.getSaldo({ from: accounts[1] }); // Apostador 1 (cara)
         const saldo2 = await casaApostas.getSaldo({ from: accounts[2] }); // Apostador 2 (coroa)
-    
+        const saldoNum = web3.utils.toBN(saldo2).toString(); // converte para string
+        console.log("Saldo como string:", saldoNum);
         assert(saldo2 >= web3.utils.toWei("2", "ether"), "Saldo do vencedor não foi atualizado corretamente");
         assert.equal(saldo1.toString(), "0", "Saldo do perdedor não foi zerado corretamente");
+    
+        // Verificar informações do evento
+        const infoEvento = await casaApostas.getInformacoesEvento(0);
+    
+        assert.equal(infoEvento[0], descricao, "Descrição do evento está incorreta");
+        assert.equal(infoEvento[1], "coroa", "Opção vencedora está incorreta");
+        assert.equal(infoEvento[2].toString(), "1", "Número de apostadores vencedores está incorreto");
+        assert.equal(infoEvento[3].toString(), web3.utils.toWei("2", "ether"), "Total apostado na opção vencedora está incorreto");
+        assert.equal(infoEvento[4].toString(), web3.utils.toWei("3", "ether"), "Total apostado no evento está incorreto");
     });
+    
     
 });

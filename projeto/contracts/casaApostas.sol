@@ -74,14 +74,24 @@ contract CasaApostas {
         evento.resultado = resultado; // Define o resultado do evento
 
         // Total apostado na opção vencedora
-        uint256 totalApostado = evento.apostasPorOpcao[resultado];
-        if (totalApostado > 0) {
+        uint256 totalApostadoVencedor = evento.apostasPorOpcao[resultado];
+        uint256 totalPerdedor = 0;
+
+        for(uint256 i = 0; i < evento.opcoes.length; i++){
+                if (i != resultado) {
+                    totalPerdedor += evento.apostasPorOpcao[i];
+                }
+            }
+
+        if (totalApostadoVencedor > 0) {
+            
             // Distribuir prêmio para os apostadores da opção vencedora
             for (uint256 i = 0; i < evento.apostas.length; i++) {
                 Aposta memory aposta = evento.apostas[i];
                 if (aposta.opcao == resultado) {
                     // Cálculo do prêmio baseado no valor apostado e no total apostado na opção vencedora
-                    uint256 premio = (aposta.valor * evento.apostasPorOpcao[resultado]) / totalApostado;
+                    uint256 valorApostado = evento.apostasUsuario[aposta.apostador];
+                    uint256 premio = (valorApostado / totalApostadoVencedor) * totalPerdedor;
                     saldos[aposta.apostador] += premio;
                 }
             }
@@ -126,24 +136,7 @@ contract CasaApostas {
         emit ApostaFeita(eventoId, msg.sender, opcao, msg.value);
     }
 
-    // Calcular odds
-    function calcularOdds(uint256 eventoId) public view returns (uint256[] memory) {
-        Evento storage evento = eventos[eventoId];
-        uint256 totalApostado = 0;
-        for (uint256 i = 0; i < evento.opcoes.length; i++) {
-            totalApostado += evento.apostasPorOpcao[i];
-        }
 
-        uint256[] memory odds = new uint256[](evento.opcoes.length);
-        for (uint256 i = 0; i < evento.opcoes.length; i++) {
-            if (evento.apostasPorOpcao[i] > 0) {
-                odds[i] = (totalApostado * 1e18) / evento.apostasPorOpcao[i];
-            } else {
-                odds[i] = 0;
-            }
-        }
-        return odds;
-    }
 
     // Visualizar resultado de um evento
     function getResultado(uint256 eventoId) public view returns (string memory) {
@@ -168,4 +161,38 @@ contract CasaApostas {
         // Emitir evento de saque
         emit SaldoSacado(msg.sender, saldo);
     }
+
+    // Função para obter informações do evento após o encerramento
+function getInformacoesEvento(uint256 eventoId) public view returns (
+    string memory descricao,
+    string memory opcaoVencedora,
+    uint256 totalApostadoresVencedores,
+    uint256 totalApostasVencedoras,
+    uint256 totalApostado
+) {
+    Evento storage evento = eventos[eventoId];
+    require(evento.encerrado, "O evento ainda nao foi encerrado.");
+
+    // Descrição do evento
+    descricao = evento.descricao;
+
+    // Opção vencedora
+    opcaoVencedora = evento.opcoes[evento.resultado];
+
+    // Contar o número de apostadores que apostaram na opção vencedora
+    totalApostadoresVencedores = 0;
+    totalApostasVencedoras = evento.apostasPorOpcao[evento.resultado];
+
+    for (uint256 i = 0; i < evento.apostas.length; i++) {
+        if (evento.apostas[i].opcao == evento.resultado) {
+            totalApostadoresVencedores++;
+        }
+    }
+
+    // Total apostado no evento
+    totalApostado = 0;
+    for (uint256 i = 0; i < evento.opcoes.length; i++) {
+        totalApostado += evento.apostasPorOpcao[i];
+    }
+}
 }
