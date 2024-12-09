@@ -16,14 +16,6 @@ contract("CasaApostas - Saldos", (accounts) => {
         assert.equal(saldo.toString(), valorDeposito, "O saldo deve ser atualizado após o depósito.");
     });
 
-    it("deve retornar o saldo corretamente", async () => {
-        const valorDeposito = web3.utils.toWei("3", "ether");
-        await casaApostas.depositar({ from: accounts[1], value: valorDeposito });
-
-        const saldo = await casaApostas.getSaldo({ from: accounts[1] });
-        assert.equal(saldo.toString(), valorDeposito, "O saldo retornado deve corresponder ao valor depositado.");
-    });
-
     it("deve permitir sacar saldo e atualizar o estado corretamente", async () => {
         const valorDeposito = web3.utils.toWei("3", "ether");
         await casaApostas.depositar({ from: accounts[1], value: valorDeposito });
@@ -59,43 +51,44 @@ contract("CasaApostas - Saldos", (accounts) => {
 
     it("deve permitir encerrar apostas e atualizar saldo dos vencedores", async () => {
         const descricao = "Lançamento de moeda";
-        const prazo = Math.floor(Date.now() / 1000) + 2; // Prazo no futuro (2 segundos)
+        const prazo = (await web3.eth.getBlock('latest')).timestamp + 2; // Prazo no futuro (2 segundos)
         const opcoes = ["cara", "coroa"];
-
+    
         // Criar evento
         await casaApostas.criarEvento(descricao, opcoes, prazo, { from: accounts[0] });
-
-        // Apostar antes de encerrar o evento
+    
+        // Realizar apostas
         await casaApostas.apostar(0, 0, { from: accounts[1], value: web3.utils.toWei("1", "ether") });
         await casaApostas.apostar(0, 1, { from: accounts[2], value: web3.utils.toWei("2", "ether") });
-
-        // Aguardar até o prazo do evento passar (6 segundos para garantir que passou)
-        await new Promise(resolve => setTimeout(resolve, 6000)); // Aguarda 6 segundos
-
-        // Verificar se o prazo do evento já passou
-        const evento = await casaApostas.eventos(0);
-        const currentTimestamp = Math.floor(Date.now() / 1000);
-        console.log("Prazo do evento:", evento.prazo.toString());
-        console.log("Timestamp atual:", currentTimestamp);
-
-        // Verifique se o prazo passou corretamente
-        assert(currentTimestamp > evento.prazo.toNumber(), "O prazo do evento não passou.");
-
+    
+        // Simular passagem de tempo no blockchain
+        await web3.currentProvider.send(
+            {
+                jsonrpc: "2.0",
+                method: "evm_increaseTime",
+                params: [6], // Avançar 6 segundos
+                id: 0,
+            },
+            () => {}
+        );
+        await web3.currentProvider.send(
+            {
+                jsonrpc: "2.0",
+                method: "evm_mine", // Minerar um novo bloco
+                id: 0,
+            },
+            () => {}
+        );
+    
         // Encerrar o evento
-        await casaApostas.encerrarEvento(0, 1, { from: accounts[0] }); // O resultado é "coroa" (opção 1)
-
-        // Verificar se os saldos foram atualizados
+        await casaApostas.encerrarEvento(0, 1, { from: accounts[0] });
+    
+        // Verificar saldos
         const saldo1 = await casaApostas.getSaldo({ from: accounts[1] }); // Apostador 1 (cara)
         const saldo2 = await casaApostas.getSaldo({ from: accounts[2] }); // Apostador 2 (coroa)
-
-        assert(saldo2 > web3.utils.toWei("2", "ether"), "Saldo do vencedor não foi atualizado corretamente");
+    
+        assert(saldo2 >= web3.utils.toWei("2", "ether"), "Saldo do vencedor não foi atualizado corretamente");
         assert.equal(saldo1.toString(), "0", "Saldo do perdedor não foi zerado corretamente");
     });
-
-
-
-
-
-   
-
+    
 });

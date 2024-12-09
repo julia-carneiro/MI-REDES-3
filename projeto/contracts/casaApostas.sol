@@ -126,43 +126,6 @@ contract CasaApostas {
         emit ApostaFeita(eventoId, msg.sender, opcao, msg.value);
     }
 
-    // Definir resultado de um evento
-    function definirResultado(uint256 eventoId, uint256 resultado) external {
-        Evento storage evento = eventos[eventoId];
-        require(msg.sender == evento.criador, "Somente o criador pode definir o resultado.");
-        require(block.timestamp >= evento.prazo, "Prazo nao encerrado.");
-        require(!evento.finalizado, "Evento ja finalizado.");
-        require(resultado < evento.opcoes.length, "Resultado invalido.");
-
-        evento.resultado = resultado;
-        evento.finalizado = true;
-
-        uint256 totalApostado = evento.apostasPorOpcao[resultado];
-        if (totalApostado > 0) {
-            // Somente distribuir para apostadores da opção vencedora
-            for (uint256 i = 0; i < evento.apostadores.length; i++) {
-                address apostador = evento.apostadores[i];
-                uint256 valorApostado = evento.apostasUsuario[apostador];
-
-                if (valorApostado > 0) {
-                    uint256 premio = (valorApostado * totalApostado) / evento.apostasPorOpcao[resultado];
-                    saldos[apostador] += premio;
-                }
-            }
-        }
-
-        // Armazenar evento no histórico
-        historico.push(HistoricoEvento({
-            id: evento.id,
-            descricao: evento.descricao,
-            opcoes: evento.opcoes,
-            resultado: resultado,
-            prazo: evento.prazo
-        }));
-
-        emit ResultadoDefinido(eventoId, resultado);
-    }
-
     // Calcular odds
     function calcularOdds(uint256 eventoId) public view returns (uint256[] memory) {
         Evento storage evento = eventos[eventoId];
@@ -182,23 +145,12 @@ contract CasaApostas {
         return odds;
     }
 
-    // Visualizar histórico
-    function getHistorico(uint256 index) public view returns (
-        uint256 id,
-        string memory descricao,
-        uint256 resultado,
-        uint256 prazo
-    ) {
-        require(index < historico.length, "Indice fora do historico.");
-        HistoricoEvento storage e = historico[index];
-        return (e.id, e.descricao, e.resultado, e.prazo);
-    }
-
     // Visualizar resultado de um evento
-    function getResultado(uint256 eventoId) public view returns (uint256) {
+    function getResultado(uint256 eventoId) public view returns (string memory) {
         Evento storage evento = eventos[eventoId];
         require(evento.finalizado, "O evento ainda nao foi finalizado.");
-        return evento.resultado;
+        uint index = evento.resultado;            
+        return evento.opcoes[index];              
     }
 
     // Função para sacar saldo

@@ -5,7 +5,21 @@ contract("CasaApostas", (accounts) => {
 
   beforeEach(async () => {
     casaApostas = await CasaApostas.new();
+
+    // Resetar tempo antes de cada teste
+    await web3.currentProvider.send(
+    {
+        jsonrpc: "2.0",
+        method: "evm_setTime",
+        params: [new Date()],
+        id: 0,
+    },
+    () => {}
+  );
   });
+
+
+
 
   it("deve permitir fazer uma aposta válida", async () => {
     const descricao = "Final da Copa do Mundo";
@@ -44,14 +58,33 @@ contract("CasaApostas", (accounts) => {
   });
 
   it("deve rejeitar apostas após o prazo do evento", async () => {
+      
     const descricao = "Final da Copa do Mundo";
-    const prazo = Math.floor(Date.now() / 1000) + 3; // Prazo já expirado
+    const latestBlock = await web3.eth.getBlock("latest");
+    const currentTime = latestBlock.timestamp;
+    const prazo = currentTime + 30; // Prazo definido no futuro
+
     const opcoes = ["time A", "time B", "empate"];
     await casaApostas.criarEvento(descricao, opcoes, prazo, { from: accounts[0] });
 
-    setTimeout(() => {
-        
-      }, 10000);
+    await web3.currentProvider.send(
+      {
+          jsonrpc: "2.0",
+          method: "evm_increaseTime",
+          params: [32], // Avançar 10 segundos para garantir que o prazo expire
+          id: 0,
+      },
+      () => {}
+    );
+    await web3.currentProvider.send(
+        {
+            jsonrpc: "2.0",
+            method: "evm_mine", // Minerar um novo bloco para efetivar o avanço
+            id: 0,
+        },
+        () => {}
+    );
+  
     
     
     try {
