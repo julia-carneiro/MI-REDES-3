@@ -56,7 +56,10 @@ contract("CasaApostas - Saldos", (accounts) => {
     
         // Criar evento
         await casaApostas.criarEvento(descricao, opcoes, prazo, { from: accounts[0] });
-    
+        
+        await casaApostas.depositar({ from: accounts[1], value: web3.utils.toWei("1", "ether") })
+        await casaApostas.depositar({ from: accounts[2], value: web3.utils.toWei("2", "ether") })
+
         // Realizar apostas
         await casaApostas.apostar(0, 0, { from: accounts[1], value: web3.utils.toWei("1", "ether") });
         await casaApostas.apostar(0, 1, { from: accounts[2], value: web3.utils.toWei("2", "ether") });
@@ -86,7 +89,7 @@ contract("CasaApostas - Saldos", (accounts) => {
         // Verificar saldos
         const saldo1 = await casaApostas.getSaldo({ from: accounts[1] }); // Apostador 1 (cara)
         const saldo2 = await casaApostas.getSaldo({ from: accounts[2] }); // Apostador 2 (coroa)
-    
+        console.log(web3.utils.toBN(saldo2).toString())
         assert(saldo2 >= web3.utils.toWei("2", "ether"), "Saldo do vencedor não foi atualizado corretamente");
         assert.equal(saldo1.toString(), "0", "Saldo do perdedor não foi zerado corretamente");
     });

@@ -17,27 +17,29 @@ contract CasaApostas {
         bool finalizado;
         uint256 resultado; // Índice da opção vencedora
         mapping(uint256 => uint256) apostasPorOpcao; // Opção => Valor total apostado
-        mapping(address => uint256) apostasUsuario;  // Usuário => Valor apostado
+        mapping(address => uint256) apostasUsuario; // Usuário => Valor apostado
         address[] apostadores;
         Aposta[] apostas; // Array de apostas
         bool encerrado; // Status de encerramento
     }
 
-    struct HistoricoEvento {
-        uint256 id;
-        string descricao;
-        string[] opcoes;
-        uint256 resultado;
-        uint256 prazo;
-    }
-
     uint256 public proximoIdEvento;
     mapping(uint256 => Evento) public eventos;
     mapping(address => uint256) public saldos; // Saldo dos usuários no sistema
-    HistoricoEvento[] public historico;
 
-    event EventoCriado(uint256 id, address criador, string[] opcoes, string descricao, uint256 prazo);
-    event ApostaFeita(uint256 eventoId, address apostador, uint256 opcao, uint256 valor);
+    event EventoCriado(
+        uint256 id,
+        address criador,
+        string[] opcoes,
+        string descricao,
+        uint256 prazo
+    );
+    event ApostaFeita(
+        uint256 eventoId,
+        address apostador,
+        uint256 opcao,
+        uint256 valor
+    );
     event ResultadoDefinido(uint256 eventoId, uint256 resultado);
     event EventoEncerrado(uint256 eventoId, uint256 resultado);
     event SaldoSacado(address indexed usuario, uint256 valor);
@@ -47,7 +49,11 @@ contract CasaApostas {
     }
 
     // Criar um evento de aposta
-    function criarEvento(string memory descricao, string[] memory opcoes, uint256 prazo) external {
+    function criarEvento(
+        string memory descricao,
+        string[] memory opcoes,
+        uint256 prazo
+    ) external {
         require(opcoes.length > 1, "Deve haver pelo menos 2 opcoes.");
         require(prazo > block.timestamp, "Prazo deve ser no futuro.");
 
@@ -58,14 +64,20 @@ contract CasaApostas {
         novoEvento.opcoes = opcoes;
         novoEvento.prazo = prazo;
 
-        emit EventoCriado(proximoIdEvento, msg.sender, opcoes, descricao, prazo);
+        emit EventoCriado(
+            proximoIdEvento,
+            msg.sender,
+            opcoes,
+            descricao,
+            prazo
+        );
         proximoIdEvento++;
     }
 
     // Função para encerrar evento e distribuir prêmios
     function encerrarEvento(uint256 eventoId, uint256 resultado) public {
         Evento storage evento = eventos[eventoId];
-        
+
         // Verificar se o evento já terminou e não foi encerrado ainda
         require(block.timestamp > evento.prazo, "Evento ainda em andamento.");
         require(!evento.encerrado, "Evento ja foi encerrado.");
@@ -75,14 +87,23 @@ contract CasaApostas {
 
         // Total apostado na opção vencedora
         uint256 totalApostado = evento.apostasPorOpcao[resultado];
+        uint256 totalPerdedor = 0;
+        for (uint256 i = 0; i < evento.opcoes.length; i++) {
+            if (i != resultado) {
+                totalPerdedor += evento.apostasPorOpcao[i];
+            }
+        }
         if (totalApostado > 0) {
             // Distribuir prêmio para os apostadores da opção vencedora
             for (uint256 i = 0; i < evento.apostas.length; i++) {
                 Aposta memory aposta = evento.apostas[i];
                 if (aposta.opcao == resultado) {
                     // Cálculo do prêmio baseado no valor apostado e no total apostado na opção vencedora
-                    uint256 premio = (aposta.valor * evento.apostasPorOpcao[resultado]) / totalApostado;
+                    uint256 premio = (aposta.valor / totalApostado) *
+                        totalPerdedor;
                     saldos[aposta.apostador] += premio;
+                } else {
+                    saldos[aposta.apostador] -= aposta.valor;
                 }
             }
         }
@@ -90,7 +111,6 @@ contract CasaApostas {
         // Emitir evento para informar que o evento foi encerrado
         emit EventoEncerrado(eventoId, resultado);
     }
-
 
     // Função para depósito
     function depositar() external payable {
@@ -109,6 +129,7 @@ contract CasaApostas {
         Evento storage evento = eventos[eventoId];
         require(block.timestamp < evento.prazo, "Apostas encerradas.");
         require(opcao < evento.opcoes.length, "Opcao invalida.");
+        require(saldos[msg.sender] >= msg.value, "Saldo insuficiente");
 
         evento.apostasPorOpcao[opcao] += msg.value;
         if (evento.apostasUsuario[msg.sender] == 0) {
@@ -117,17 +138,17 @@ contract CasaApostas {
         evento.apostasUsuario[msg.sender] += msg.value;
 
         // Registrar aposta no array
-        evento.apostas.push(Aposta({
-            apostador: msg.sender,
-            opcao: opcao,
-            valor: msg.value
-        }));
+        evento.apostas.push(
+            Aposta({apostador: msg.sender, opcao: opcao, valor: msg.value})
+        );
 
         emit ApostaFeita(eventoId, msg.sender, opcao, msg.value);
     }
 
     // Calcular odds
-    function calcularOdds(uint256 eventoId) public view returns (uint256[] memory) {
+    function calcularOdds(
+        uint256 eventoId
+    ) public view returns (uint256[] memory) {
         Evento storage evento = eventos[eventoId];
         uint256 totalApostado = 0;
         for (uint256 i = 0; i < evento.opcoes.length; i++) {
@@ -146,11 +167,13 @@ contract CasaApostas {
     }
 
     // Visualizar resultado de um evento
-    function getResultado(uint256 eventoId) public view returns (string memory) {
+    function getResultado(
+        uint256 eventoId
+    ) public view returns (string memory) {
         Evento storage evento = eventos[eventoId];
         require(evento.finalizado, "O evento ainda nao foi finalizado.");
-        uint index = evento.resultado;            
-        return evento.opcoes[index];              
+        uint index = evento.resultado;
+        return evento.opcoes[index];
     }
 
     // Função para sacar saldo

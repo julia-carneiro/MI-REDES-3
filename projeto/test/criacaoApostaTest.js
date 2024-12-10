@@ -29,6 +29,8 @@ contract("CasaApostas", (accounts) => {
     // Criar um evento
     await casaApostas.criarEvento(descricao, opcoes, prazo, { from: accounts[0] });
 
+    await casaApostas.depositar({ from: accounts[1], value: web3.utils.toWei("1", "ether") })
+
     // Fazer uma aposta válida
     const valorAposta = web3.utils.toWei("1", "ether");
     const tx = await casaApostas.apostar(0, 1, { from: accounts[1], value: valorAposta });
