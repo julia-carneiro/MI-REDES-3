@@ -5,6 +5,9 @@ import {
   closeEvent, 
   getAllEventos, 
   getEvento,
+  withdrawFunds,
+  depositFunds,
+  getUserBalance,
 } from './web3/web3';
 import { 
   Container, 
@@ -61,6 +64,62 @@ function App() {
   // Tab state
   const [currentTab, setCurrentTab] = useState(0);
 
+  // New state for deposit and withdraw
+  const [openDepositDialog, setOpenDepositDialog] = useState(false);
+  const [depositAmount, setDepositAmount] = useState('');
+  const [userBalance, setUserBalance] = useState('0');
+
+  // Fetch user balance
+  const fetchUserBalance = async () => {
+    try {
+      const balance = await getUserBalance();
+      setUserBalance(balance);
+    } catch (error) {
+      console.error("Erro ao buscar saldo:", error);
+      setError("Erro ao buscar saldo");
+    }
+  };
+
+  // Update useEffect to fetch balance
+  useEffect(() => {
+    fetchEventos();
+    fetchUserBalance();
+  }, []);
+
+  // Handle deposit
+  const handleDeposit = async () => {
+    try {
+      const amount = parseFloat(depositAmount);
+      if (isNaN(amount) || amount <= 0) {
+        setError("Por favor, insira um valor válido");
+        return;
+      }
+
+      await depositFunds(amount);
+      await fetchUserBalance();
+      
+      setOpenDepositDialog(false);
+      setDepositAmount('');
+      setError("Depósito realizado com sucesso!");
+    } catch (error) {
+      console.error("Erro no depósito:", error);
+      setError("Erro ao realizar depósito");
+    }
+  };
+
+  // Handle withdraw
+  const handleWithdraw = async () => {
+    try {
+      await withdrawFunds();
+      await fetchUserBalance();
+      
+      setError("Saque realizado com sucesso!");
+    } catch (error) {
+      console.error("Erro no saque:", error);
+      setError("Erro ao realizar saque");
+    }
+  };
+  
   const fetchEventos = async () => {
     try {
       const fetchedEventos = await getAllEventos() || [];
@@ -112,19 +171,56 @@ function App() {
     }
   };
 
-  const handlePlaceBet = async () => {
-    try {
-      if (!betOption || !betValue || !betEventId) {
-        setError("Por favor, forneça todos os campos necessários para fazer a aposta.");
-        return;
-      }
-      await placeBet(Number(betEventId), Number(betOption), Number(betValue));
-      setError("Aposta realizada com sucesso!");
-    } catch (error) {
-      console.error("Erro ao fazer aposta:", error);
-      setError("Erro ao fazer aposta");
+  // In the handlePlaceBet function
+const handlePlaceBet = async () => {
+  try {
+    if (!betOption || !betValue || !betEventId) {
+      setError("Por favor, forneça todos os campos necessários para fazer a aposta.");
+      return;
     }
-  };
+
+    // Convert betOption and betValue to numbers
+    const optionNum = Number(betOption);
+    const valueNum = Number(betValue);
+
+    // Validate inputs
+    if (isNaN(optionNum) || isNaN(valueNum) || valueNum <= 0) {
+      setError("Valores de aposta inválidos. Verifique a opção e o valor.");
+      return;
+    }
+
+    await placeBet(Number(betEventId), optionNum, valueNum);
+    
+    // Clear bet fields after successful bet
+    setBetOption('');
+    setBetValue('');
+    setBetEventId('');
+
+    // Fetch updated events and balance
+    await fetchEventos();
+    await fetchUserBalance();
+
+    setError("Aposta realizada com sucesso!");
+  } catch (error: unknown) {
+    console.error("Erro ao fazer aposta:", error);
+    
+    // Handle different types of errors
+    if (error instanceof Error) {
+      // Map specific error messages
+      const errorMessage = error.message.includes('Saldo insuficiente') 
+        ? "Saldo insuficiente para realizar a aposta. Por favor, faça um depósito."
+        : error.message.includes('Apostas encerradas') 
+        ? "Prazo de apostas encerrado para este evento."
+        : error.message.includes('Opção de aposta inválida')
+        ? "Opção de aposta inválida. Verifique as opções disponíveis."
+        : "Erro ao realizar aposta. Tente novamente.";
+      
+      setError(errorMessage);
+    } else {
+      setError("Erro desconhecido ao fazer aposta");
+    }
+  }
+};
 
   const handleCloseEvent = async (event: BettingEvent) => {
     try {
@@ -300,28 +396,92 @@ function App() {
   );
 
   return (
-    <Container 
-      maxWidth="lg" 
-      sx={{ 
-        marginTop: '20px', 
-        backgroundColor: '#f0f4f8', 
-        padding: '20px', 
-        borderRadius: '12px',
-        boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
-      }}
-    >
-      <Typography 
-        variant="h4" 
-        gutterBottom 
-        align="center" 
+      <Container 
+        maxWidth="lg" 
         sx={{ 
-          color: '#2c3e50', 
-          fontWeight: 'bold',
-          marginBottom: '30px'
+          marginTop: '20px', 
+          backgroundColor: '#f0f4f8', 
+          padding: '20px', 
+          borderRadius: '12px',
+          boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
         }}
       >
-        Casa de Apostas 🎲
-      </Typography>
+        <Typography 
+          variant="h4" 
+          gutterBottom 
+          align="center" 
+          sx={{ 
+            color: '#2c3e50', 
+            fontWeight: 'bold',
+            marginBottom: '30px'
+          }}
+        >
+          Casa de Apostas 🎲
+        </Typography>
+  
+        {/* User Balance and Deposit/Withdraw Section */}
+        <Box 
+          display="flex" 
+          justifyContent="center" 
+          alignItems="center" 
+          gap={2} 
+          mb={3}
+        >
+          <Typography variant="h6">
+            Saldo: {userBalance} ETH
+          </Typography>
+          <Button 
+            variant="contained" 
+            color="primary" 
+            onClick={() => setOpenDepositDialog(true)}
+          >
+            Depositar
+          </Button>
+          <Button 
+            variant="contained" 
+            color="secondary" 
+            onClick={handleWithdraw}
+            disabled={parseFloat(userBalance) === 0}
+          >
+            Sacar
+          </Button>
+        </Box>
+  
+        {/* Rest of the existing code... */}
+  
+        {/* Deposit Dialog */}
+        <Dialog 
+          open={openDepositDialog} 
+          onClose={() => setOpenDepositDialog(false)}
+          maxWidth="sm"
+          fullWidth
+        >
+          <DialogTitle>Depositar Fundos</DialogTitle>
+          <DialogContent>
+            <TextField
+              fullWidth
+              label="Valor do Depósito (ETH)"
+              type="number"
+              value={depositAmount}
+              onChange={(e) => setDepositAmount(e.target.value)}
+              margin="normal"
+              inputProps={{ min: "0.000001", step: "0.000001" }}
+            />
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setOpenDepositDialog(false)} color="secondary">
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleDeposit} 
+              color="primary" 
+              variant="contained"
+              disabled={!depositAmount || parseFloat(depositAmount) <= 0}
+            >
+              Depositar
+            </Button>
+          </DialogActions>
+        </Dialog>
 
       {/* Tabs for Current and Closed Events */}
       <Tabs 
