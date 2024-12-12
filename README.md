@@ -1,6 +1,9 @@
 # Problema 3 - BET Distribuída 
+> Grupo:
+> - Júlia Carneiro Gonçalves de Souza.
+> - Thiago Souza Rodrigues.
 
-Objetivo: Desenvolver uma plataforma de apostas online descentralizada, eliminando a necessidade de intermediários e garantindo maior transparência e segurança nas transações.
+**Objetivo:** Desenvolver uma plataforma de apostas online descentralizada, eliminando a necessidade de intermediários e garantindo maior transparência e segurança nas transações.
 
 ## Introdução
 
