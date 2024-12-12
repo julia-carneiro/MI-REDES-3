@@ -3,7 +3,8 @@ import {
   createEvent, 
   placeBet, 
   closeEvent, 
-  getAllEventos 
+  getAllEventos, 
+  getEvento
 } from './web3/web3';
 import { 
   Container, 
@@ -26,7 +27,7 @@ import {
 
 // Define an interface for the Event structure
 interface BettingEvent {
-  id: number;
+  id: unknown;
   description: string;
   options: string[];
   deadline: number;
@@ -109,12 +110,21 @@ function App() {
 
   const handleCloseEvent = async (eventId: number) => {
     try {
+      // First, fetch the event details
+      const evento = await getEvento(eventId);
+      
+      // Check if the event is past its deadline
+      const currentTimestamp = Math.floor(Date.now() / 1000);
+      if (evento.deadline > currentTimestamp) {
+        setError("O evento ainda não atingiu seu prazo");
+        return;
+      }
+  
       await closeEvent(eventId);
       setError("Evento encerrado com sucesso!");
-      // Optionally refresh events
     } catch (error) {
       console.error("Erro ao encerrar evento:", error);
-      setError("Erro ao encerrar evento");
+      setError("Erro ao encerrar evento. Verifique se o prazo foi atingido.");
     }
   };
 
