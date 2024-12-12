@@ -53,7 +53,7 @@ contract CasaApostas {
         string memory descricao,
         string[] memory opcoes,
         uint256 prazo
-    ) external {
+    ) external returns (uint256) {
         require(opcoes.length > 1, "Deve haver pelo menos 2 opcoes.");
         require(prazo > block.timestamp, "Prazo deve ser no futuro.");
 
@@ -71,7 +71,11 @@ contract CasaApostas {
             descricao,
             prazo
         );
+
+        uint256 idEvento = proximoIdEvento;
         proximoIdEvento++;
+
+        return idEvento;
     }
 
     // Função para encerrar evento e distribuir prêmios
@@ -145,27 +149,6 @@ contract CasaApostas {
         emit ApostaFeita(eventoId, msg.sender, opcao, msg.value);
     }
 
-    // Calcular odds
-    function calcularOdds(
-        uint256 eventoId
-    ) public view returns (uint256[] memory) {
-        Evento storage evento = eventos[eventoId];
-        uint256 totalApostado = 0;
-        for (uint256 i = 0; i < evento.opcoes.length; i++) {
-            totalApostado += evento.apostasPorOpcao[i];
-        }
-
-        uint256[] memory odds = new uint256[](evento.opcoes.length);
-        for (uint256 i = 0; i < evento.opcoes.length; i++) {
-            if (evento.apostasPorOpcao[i] > 0) {
-                odds[i] = (totalApostado * 1e18) / evento.apostasPorOpcao[i];
-            } else {
-                odds[i] = 0;
-            }
-        }
-        return odds;
-    }
-
     // Visualizar resultado de um evento
     function getResultado(
         uint256 eventoId
@@ -190,5 +173,9 @@ contract CasaApostas {
 
         // Emitir evento de saque
         emit SaldoSacado(msg.sender, saldo);
+    }
+
+    function getNumEventos() public view returns (uint256) {
+        return proximoIdEvento;
     }
 }
