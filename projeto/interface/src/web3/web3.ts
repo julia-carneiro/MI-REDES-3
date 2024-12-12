@@ -70,7 +70,7 @@ interface BlockchainEvent {
   encerrado?: boolean;
 }
 
-export const closeEvent = async (eventId: number) => {
+export const closeEvent = async (eventId: number, resultado: number) => {
   try {
     const accounts = await getGanacheAccounts();
     if (accounts instanceof Error) {
@@ -88,9 +88,7 @@ export const closeEvent = async (eventId: number) => {
       throw new Error('Evento já foi encerrado');
     }
 
-    const result = 0; //TEM Q TROCAR ISSO AQ
-
-    const response = await EventManager.methods.encerrarEvento(eventId, result)
+    const response = await EventManager.methods.encerrarEvento(eventId, resultado)
       .send({ 
         from: accounts[1], 
         gas: '3000000' 
@@ -110,9 +108,11 @@ export const getEvento = async (eventId: number) => {
     description: evento.descricao || '', 
     options: evento.opcoes || [], 
     deadline: evento.prazo ? Number(evento.prazo) : 0, 
-    encerrado: evento.encerrado || false 
+    encerrado: evento.encerrado || false,
+    resultado: evento.resultado !== undefined ? Number(evento.resultado) : undefined
   };
 };
+
 export const getAllEventos = async () => {
   const totalEventos: number = await EventManager.methods.getNumEventos().call();
 
@@ -123,3 +123,4 @@ export const getAllEventos = async () => {
   }
   return eventos;
 }
+

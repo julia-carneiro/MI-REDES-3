@@ -4,7 +4,7 @@ import {
   placeBet, 
   closeEvent, 
   getAllEventos, 
-  getEvento
+  getEvento,
 } from './web3/web3';
 import { 
   Container, 
@@ -22,7 +22,9 @@ import {
   Snackbar,
   Alert,
   Card,
-  CardContent
+  CardContent,
+  Tabs,
+  Tab
 } from '@mui/material';
 
 // Define an interface for the Event structure
@@ -32,11 +34,14 @@ interface BettingEvent {
   options: string[];
   deadline: number;
   encerrado?: boolean;
+  resultado?: number;
 }
 
 function App() {
   const [events, setEvents] = useState<BettingEvent[]>([]);
+  const [closedEvents, setClosedEvents] = useState<BettingEvent[]>([]);
   const [openCreateEventDialog, setOpenCreateEventDialog] = useState(false);
+  const [openResultDialog, setOpenResultDialog] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
   // Form state for creating an event
@@ -49,15 +54,28 @@ function App() {
   const [betOption, setBetOption] = useState('');
   const [betValue, setBetValue] = useState('');
 
+  // Result selection state
+  const [selectedEventForResult, setSelectedEventForResult] = useState<BettingEvent | null>(null);
+  const [selectedResultOption, setSelectedResultOption] = useState<number | null>(null);
+
+  // Tab state
+  const [currentTab, setCurrentTab] = useState(0);
+
   const fetchEventos = async () => {
     try {
-
       const fetchedEventos = await getAllEventos() || [];
-      setEvents(fetchedEventos);
+      
+      // Separate active and closed events
+      const activeEvents = fetchedEventos.filter(evento => !evento.encerrado);
+      const closedEventsList = fetchedEventos.filter(evento => evento.encerrado);
+
+      setEvents(activeEvents);
+      setClosedEvents(closedEventsList);
     } catch (error) {
       console.error("Error fetching events:", error);
       setError("Erro ao buscar eventos");
       setEvents([]);
+      setClosedEvents([]);
     }
   };
 
@@ -108,29 +126,178 @@ function App() {
     }
   };
 
-  const handleCloseEvent = async (eventId: number) => {
+  const handleCloseEvent = async (event: BettingEvent) => {
     try {
-      // First, fetch the event details
-      const evento = await getEvento(eventId);
-      
-      // Check if the event is past its deadline
-      const currentTimestamp = Math.floor(Date.now() / 1000);
-      if (evento.deadline > currentTimestamp) {
-        setError("O evento ainda não atingiu seu prazo");
-        return;
-      }
-  
-      await closeEvent(eventId);
-      setError("Evento encerrado com sucesso!");
+      // Open result selection dialog
+      setSelectedEventForResult(event);
+      setOpenResultDialog(true);
     } catch (error) {
       console.error("Erro ao encerrar evento:", error);
       setError("Erro ao encerrar evento. Verifique se o prazo foi atingido.");
     }
   };
 
+  const handleSelectResult = async () => {
+    try {
+      if (selectedEventForResult && selectedResultOption !== null) {
+        await closeEvent(Number(selectedEventForResult.id), selectedResultOption);
+        
+        // Remove from active events and add to closed events
+        const updatedEvents = events.filter(e => e.id !== selectedEventForResult.id);
+        const closedEvent = {
+          ...selectedEventForResult, 
+          encerrado: true, 
+          resultado: selectedResultOption
+        };
+        
+        setEvents(updatedEvents);
+        setClosedEvents([...closedEvents, closedEvent]);
+        
+        setOpenResultDialog(false);
+        setSelectedEventForResult(null);
+        setSelectedResultOption(null);
+        setError("Evento encerrado com sucesso!");
+      } else {
+        setError("Por favor, selecione um resultado");
+      }
+    } catch (error) {
+      console.error("Erro ao selecionar resultado:", error);
+      setError("Erro ao selecionar resultado");
+    }
+  };
+
   const handleCloseError = () => {
     setError(null);
   };
+
+  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+    setCurrentTab(newValue);
+  };
+
+  const renderEventList = (eventList: BettingEvent[]) => (
+    <Grid container spacing={3}>
+      {eventList.length === 0 && (
+        <Grid item xs={12}>
+          <Card 
+            sx={{ 
+              maxWidth: 600, 
+              margin: '0 auto', 
+              textAlign: 'center',
+              backgroundColor: '#f9fafb',
+              borderRadius: '12px',
+              boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+            }}
+          >
+            <CardContent>
+              <Typography 
+                variant="h5" 
+                color="textSecondary" 
+                gutterBottom
+              >
+                {currentTab === 0 
+                  ? "Nenhum evento ativo" 
+                  : "Nenhum evento encerrado"}
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+      )}
+      {eventList.map((event) => (
+        <Grid item xs={12} md={6} lg={4} key={event.id}>
+          <Paper 
+            elevation={3} 
+            sx={{ 
+              p: 2, 
+              borderRadius: '10px',
+              background: 'linear-gradient(145deg, #f3f4f6, #e7e9ee)',
+              transition: 'transform 0.3s ease',
+              '&:hover': {
+                transform: 'scale(1.02)'
+              }
+            }}
+          >
+            {/* Event Details */}
+            <Typography variant="h6" gutterBottom>
+              {event.description}
+            </Typography>
+            <Box mb={2}>
+              <Typography variant="body2" color="textSecondary">
+                Prazo: {new Date(Number(event.deadline) * 1000).toLocaleString()}
+              </Typography>
+              <Typography variant="body2" color="textSecondary" gutterBottom>
+                Opções:
+              </Typography>
+              <Box display="flex" gap={1}>
+                {event.options.map((option, index) => (
+                  <Chip 
+                    key={index} 
+                    label={option} 
+                    variant="outlined" 
+                    color="primary" 
+                    size="small" 
+                  />
+                ))}
+              </Box>
+              {event.encerrado && event.resultado !== undefined && (
+                <Box mt={2}>
+                  <Typography variant="body2" color="primary">
+                    Resultado: {event.options[event.resultado]}
+                  </Typography>
+                </Box>
+              )}
+            </Box>
+
+            {!event.encerrado && (
+              <>
+                {/* Bet Section */}
+                <Box display="flex" flexDirection="column" gap={1}>
+                  <TextField
+                    label="Opção"
+                    value={betOption}
+                    onChange={(e) => {
+                      setBetOption(e.target.value);
+                      setBetEventId(String(event.id));
+                    }}
+                    size="small"
+                    fullWidth
+                    type="number"
+                  />
+                  <TextField
+                    label="Valor (ETH)"
+                    value={betValue}
+                    onChange={(e) => setBetValue(e.target.value)}
+                    size="small"
+                    fullWidth
+                    type="number"
+                  />
+                </Box>
+
+                {/* Action Buttons */}
+                <Box display="flex" gap={1} mt={2}>
+                  <Button 
+                    variant="contained" 
+                    color="secondary" 
+                    onClick={handlePlaceBet} 
+                    fullWidth
+                  >
+                    Fazer Aposta
+                  </Button>
+                  <Button 
+                    variant="contained" 
+                    color="error" 
+                    onClick={() => handleCloseEvent(event)} 
+                    fullWidth
+                  >
+                    Encerrar Evento
+                  </Button>
+                </Box>
+              </>
+            )}
+          </Paper>
+        </Grid>
+      ))}
+    </Grid>
+  );
 
   return (
     <Container 
@@ -156,147 +323,40 @@ function App() {
         Casa de Apostas 🎲
       </Typography>
 
+      {/* Tabs for Current and Closed Events */}
+      <Tabs 
+        value={currentTab} 
+        onChange={handleTabChange} 
+        centered 
+        sx={{ marginBottom: 3 }}
+      >
+        <Tab label="Eventos Atuais" />
+        <Tab label="Eventos Encerrados" />
+      </Tabs>
+
       <Box display="flex" justifyContent="center" mb={3}>
-        <Button 
-          variant="contained" 
-          color="primary" 
-          onClick={() => setOpenCreateEventDialog(true)}
-          sx={{ 
-            padding: '10px 20px',
-            backgroundColor: '#3498db',
-            '&:hover': {
-              backgroundColor: '#2980b9'
-            }
-          }}
-        >
-          Criar Novo Evento
-        </Button>
+        {currentTab === 0 && (
+          <Button 
+            variant="contained" 
+            color="primary" 
+            onClick={() => setOpenCreateEventDialog(true)}
+            sx={{ 
+              padding: '10px 20px',
+              backgroundColor: '#3498db',
+              '&:hover': {
+                backgroundColor: '#2980b9'
+              }
+            }}
+          >
+            Criar Novo Evento
+          </Button>
+        )}
       </Box>
 
-      {/* Empty State */}
-      {events.length === 0 && (
-        <Card 
-          sx={{ 
-            maxWidth: 600, 
-            margin: '0 auto', 
-            textAlign: 'center',
-            backgroundColor: '#f9fafb',
-            borderRadius: '12px',
-            boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
-          }}
-        >
-          <CardContent>
-            <Typography 
-              variant="h5" 
-              color="textSecondary" 
-              gutterBottom
-            >
-              Nenhum evento cadastrado ainda
-            </Typography>
-            <Typography 
-              variant="body1" 
-              color="textSecondary" 
-              paragraph
-            >
-              Crie seu primeiro evento de apostas clicando no botão "Criar Novo Evento"
-            </Typography>
-            <Button 
-              variant="contained" 
-              color="primary" 
-              onClick={() => setOpenCreateEventDialog(true)}
-            >
-              Criar Primeiro Evento
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Eventos Grid */}
-      <Grid container spacing={3}>
-        {(events || []).map((event) => (
-          <Grid item xs={12} md={6} lg={4} key={event.id}>
-            <Paper 
-              elevation={3} 
-              sx={{ 
-                p: 2, 
-                borderRadius: '10px',
-                background: 'linear-gradient(145deg, #f3f4f6, #e7e9ee)',
-                transition: 'transform 0.3s ease',
-                '&:hover': {
-                  transform: 'scale(1.02)'
-                }
-              }}
-            >
-              {/* Event Details */}
-              <Typography variant="h6" gutterBottom>
-                {event.description}
-              </Typography>
-              <Box mb={2}>
-                <Typography variant="body2" color="textSecondary">
-                  Prazo: {new Date(Number(event.deadline) * 1000).toLocaleString()}
-                </Typography>
-                <Typography variant="body2" color="textSecondary" gutterBottom>
-                  Opções:
-                </Typography>
-                <Box display="flex" gap={1}>
-                  {event.options.map((option, index) => (
-                    <Chip 
-                      key={index} 
-                      label={option} 
-                      variant="outlined" 
-                      color="primary" 
-                      size="small" 
-                    />
-                  ))}
-                </Box>
-              </Box>
-
-              {/* Bet Section */}
-              <Box display="flex" flexDirection="column" gap={1}>
-                <TextField
-                  label="Opção"
-                  value={betOption}
-                  onChange={(e) => {
-                    setBetOption(e.target.value);
-                    setBetEventId(String(event.id));
-                  }}
-                  size="small"
-                  fullWidth
-                  type="number"
-                />
-                <TextField
-                  label="Valor (ETH)"
-                  value={betValue}
-                  onChange={(e) => setBetValue(e.target.value)}
-                  size="small"
-                  fullWidth
-                  type="number"
-                />
-              </Box>
-
-              {/* Action Buttons */}
-              <Box display="flex" gap={1} mt={2}>
-                <Button 
-                  variant="contained" 
-                  color="secondary" 
-                  onClick={handlePlaceBet} 
-                  fullWidth
-                >
-                  Fazer Aposta
-                </Button>
-                <Button 
-                  variant="contained" 
-                  color="error" 
-                  onClick={() => handleCloseEvent(event.id)} 
-                  fullWidth
-                >
-                  Encerrar Evento
-                </Button>
-              </Box>
-            </Paper>
-          </Grid>
-        ))}
-      </Grid>
+      {/* Render Events based on current tab */}
+      {currentTab === 0 
+        ? renderEventList(events) 
+        : renderEventList(closedEvents)}
 
       {/* Create Event Dialog */}
       <Dialog 
@@ -338,6 +398,48 @@ function App() {
           </Button>
           <Button onClick={handleCreateEvent} color="primary" variant="contained">
             Criar Evento
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Result Selection Dialog */}
+      <Dialog 
+        open={openResultDialog} 
+        onClose={() => setOpenResultDialog(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Selecionar Resultado do Evento</DialogTitle>
+        <DialogContent>
+          <Typography variant="h6" gutterBottom>
+            {selectedEventForResult?.description}
+          </Typography>
+          <Grid container spacing={2}>
+            {selectedEventForResult?.options.map((option, index) => (
+              <Grid item xs={12} key={index}>
+                <Button
+                  variant={selectedResultOption === index ? "contained" : "outlined"}
+                  color="primary"
+                  onClick={() => setSelectedResultOption(index)}
+                  fullWidth
+                >
+                  {option}
+                </Button>
+              </Grid>
+            ))}
+          </Grid>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenResultDialog(false)} color="secondary">
+            Cancelar
+          </Button>
+          <Button 
+            onClick={handleSelectResult} 
+            color="primary" 
+            variant="contained"
+            disabled={selectedResultOption === null}
+          >
+            Confirmar Resultado
           </Button>
         </DialogActions>
       </Dialog>
