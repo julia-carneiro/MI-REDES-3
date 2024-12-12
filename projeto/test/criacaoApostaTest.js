@@ -19,8 +19,6 @@ contract("CasaApostas", (accounts) => {
   });
 
 
-
-
   it("deve permitir fazer uma aposta válida", async () => {
     const descricao = "Final da Copa do Mundo";
     const prazo = Math.floor(Date.now() / 1000) + 3600; 
